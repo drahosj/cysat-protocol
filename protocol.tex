@@ -1,0 +1,227 @@
+%commands.tex - command protocol document for CySat
+
+% Jake Drahos - Januar 2014
+
+\documentclass{article}
+\usepackage{times}
+\usepackage[margin=0.75in]{geometry}
+
+\begin{document}
+
+\title{CySat Command and Data Protocol Description}
+\author{Jake Drahos \\ \texttt{drahos@iastate.edu}}
+\date{\today\\v0.2}
+
+
+\newcommand{\mquery}{\texttt{QUERY }}
+\newcommand{\mresult}{\texttt{RESULT }}
+\newcommand{\mcommand}{\texttt{COMMAND }}
+\newcommand{\mdownlink}{\texttt{DOWNLINK }}
+\newcommand{\macommand}{\texttt{ACK\_COMMAND }}
+\newcommand{\madownlink}{\texttt{ACK\_DOWNLINK }}
+\newcommand{\merror}{\texttt{NACK\_ERROR }}
+
+
+\maketitle
+
+\section{Introduction}
+This document is the canonical reference for the communications protocol used for CySat I and
+future satellites for the CySat project.
+This document is currently a working draft. As such, it is incomplete. Additions will be made, however, major
+changes to already established details will not occur except in large version number upgrades of this document (for example,
+version 0.7 to 1.1, but not from 0.4 to 0.5).
+Version history can be found in the last section of this document.
+
+\section{Protocol Overview}
+The protocol is based on the idea of \emph{messages}.
+Messages are entirely in ASCII.
+Each message has several \emph{fields}, each of which is separated by a comma.
+Every message begins with a start character, and ends with a stop character.
+
+The communications protocol involves several types of message:
+\begin{center}
+  \begin{tabular}{| l | l | l |}
+    \hline
+    Message Type & Usage & Origin \\ \hline
+    \mquery & Query the satellite & Base \\
+    \mresult & Contains return information from a query & Satellite \\ \hline
+    \mcommand & Issues a command to the satellite & Base \\
+    \macommand & Acknowledges that a command was performed & Satellite \\ \hline
+    \mdownlink & Downlink packet & Satellite \\
+    \madownlink & Acknowledges downlink packet & Base \\ \hline
+    \merror & Acknowledges an invalid packet & Satellite \\
+    \hline
+  \end{tabular}
+\end{center}
+  
+  
+\section{Message String Format}
+  A valid command string takes the following format: \\[5pt]
+  \verb=!MESSAGE_TYPE,FIELD_1,FIELD_2,CHECKSUM$=\\[5pt]
+  There are three reserved characters, which cannot appear anywhere in an ASCII command:
+  \begin{itemize}
+  \item \verb=!= --- The start character
+  \item \verb=$= --- The stop character
+  \item \verb=,= --- Field separator
+  \end{itemize}
+  
+  
+  Each different message type has different requirements for valid lengths.
+  
+  
+\begin{center}
+  \begin{tabular}{| l | l | c |}
+    \hline
+    Message Type & Minimum Fields & Count \\ \hline
+    \mquery & Type, Query Subtype, Checksum & 3 \\
+    \mcommand & Type, Command, ID, Checksum & 4 \\
+    \mdownlink & Type, ID, Data, Checksum & 4 \\
+    \mresult & Type, Query Subtype, Result, Checksum  & 4 \\
+    \macommand & Type, Command, ID, Checksum & 4 \\
+    \madownlink & Type, ID, Checksum & 3 \\
+    \merror & Type, Subtype, Checksum & 3 \\
+    \hline
+  \end{tabular}
+\end{center}
+
+Note that these are minimum required fields. Some messages, such as \mquery and \mcommand may have
+different required parameters depending on the exact command or query being executed.
+
+
+  The checksum is a one-byte ASCII-Hexadecimal pair. Any applicable Message ID fields are two-byte ASCII-Hexadecimal values (two hex pairs).
+  
+\section{The Checksum}
+  The checksum used is a NMEA checksum of all characters beginning with the \texttt{!} up to the last \texttt{,} preceeding the checksum.
+  The start character \textbf{IS} included in the checksum. The last separator (\texttt{,}) \textbf{IS} also included in the checksum. In
+  this sense, the checksum includes every character preceeding it in the entire message.
+  The process of calculating the checksum is to merely \texttt{XOR} each byte with the previous byte.
+  The calculated checksum is one byte encoded in ASCII-Hexadecimal. It immediately follows the last separator and preceeds the stop character.
+  
+  
+  \large NOTE: \normalsize In this document, the example checksums used will be a random hex pair and are not actually valid.
+\section{QUERY Messages}
+  The purpose of a \mquery message is to allow the base station to request specific information from the satellite.
+  Each query message has a corresponding \mresult message. The subtype name of the corresponding \mresult
+  is the same as the subtype name of the \mquery.
+  
+  \begin{center}
+    \begin{tabular}{| l | l | l | c |}
+      \hline
+      Subtype & Definition & Fields & Field Count \\ \hline
+      \texttt{HELLO} & Hello World & Type, Subtype, Checksum & 3 \\
+      \texttt{POW\_PANEL} & Panel information query & Type, Subtype, Axis, Checksum & 4 \\
+      \texttt{POW\_BUS} & Power bus information query & Type, Subtype, Checksum & 3 \\
+      \texttt{POW\_BATTERY} & Battery information query & Type, Subtype, Battery, Checksum & 4 \\
+      \hline
+    \end{tabular}
+  \end{center}
+  
+  \subsection{QUERY HELLO}
+    A \mquery \texttt{HELLO} Message is a \mquery request for a Hello World response from the satellite. This is the most basic
+    message exchange with the satellite. An example exchange is below: \\[5pt]
+    The base station will send a request \mquery message: \\[5pt]
+    \texttt{!QUERY,HELLO,A0\$} \\[5pt]
+    The satellite will now send a reply \mresult message: \\[5pt]
+    \texttt{!RESULT,HELLO,Hello World,C2\$} \\[5pt]
+    
+    
+  \subsection{QUERY POW\_PANEL}
+    A \mquery \texttt{POW\_PANEL} message requests power information for one of the three axis panels. There is one additional
+    field required for a \mquery \texttt{POW\_PANEL} query: the axis field. The axis field is one of three valid axes:
+    \begin{itemize}
+    \item \texttt{X}
+    \item \texttt{Y}
+    \item \texttt{Z}
+    \end{itemize}
+    
+  \subsection{QUERY POW\_BUS}
+    This query requests bus information from the EPS. It has no additional fields.
+    
+  \subsection{QUERY POW\_BATTERY}
+    This query requests information on one of two batteries. It has one additional field to determine which battery should be reported.
+    Valid values for the Battery field are: 
+    \begin{itemize}
+    \item \texttt{0}
+    \item \texttt{1}
+    \end{itemize}
+  
+  \subsection{QUERY Exchange Details}
+  A \mquery exchange is a two-step exchange. First, the base station sends a \mquery message and waits.
+  Upon receiving and validating a \mquery message, the satellite will compose and transmit a \mresult message.
+  
+  The satellite \textbf{IS NOT} permitted to transmit multiple \mresult
+   messages per \mquery received.
+  
+  The base station \textbf{IS} permitted to retry \mquery messages until a \mresult is received.
+  
+ 
+
+\section{RESULT Messages}
+  \mresult messages are sent by the satellite in response to a query of the same subtype name. Each result message contains at least four fields.
+  At least one field contains the result data. Certain result subtypes may return more than one data field. The meanings of these additional
+  fields will be described in each \texttt{RESULT} section.
+  
+  \begin{center}
+    \begin{tabular}{| l | l | l | c |}
+      \hline
+      Subtype & Definition & Fields & Count \\ \hline
+      \texttt{HELLO} & Hello World & Type, Subtype, Result Data, Checksum & 4\\
+      \texttt{POW\_PANEL} & Panel status & Type, Subtype, Axis, Voltage, -Current, +Current, Checksum & 7\\
+      \texttt{POW\_BUS} & Bus status & Type, Subtype, Battery Current, 5V Current, 3.3V Current, Checksum & 6 \\
+      \texttt{POW\_BATTERY} & Battery status & Type, Subtype, Battery, Temperature, Voltage, Direction, Current, Checksum & 8 \\
+      \hline
+    \end{tabular}
+  \end{center}
+  
+  \subsection{RESULT HELLO}
+    The \texttt{HELLO} subtype is a response to a ``Hello World'' request from the base station.
+    The single data field of a \texttt{HELLO} result always contains the string ``Hello World''.
+
+    
+  \subsection{RESULT POW\_PANEL}
+    This result contains four data fields. The first is the axis requested in the original query.
+    The voltage and current fields contain the corresponding power values, each as a two-byte integer encoded as two hex 
+    pairs.
+    
+  \subsection{RESULT POW\_BUS}
+    This result contains three data fields. Each current field contains the corresponding EPS value. Each is encoded as
+    two hex-pairs representing one 16 bit integer.
+    
+  \subsection{RESULT POW\_BATTERY}
+    This result contains five data fields. The first field is the battery, either \texttt{0} or \texttt{1}, depending
+    on which was requested. The current, temperature, and voltage fields are two-byte integers represented as two hex-pairs.
+    The direction field is either \texttt{D} or \texttt{C}, for discharge or charge.
+    
+\section{NACK\_ERROR Messages}
+  \merror messages are sent by the satellite to inform the base station that a message was received, but an error
+  occurred during parsing. All \merror messages are three fields in length, with only the Type, Subtype, and Checksum fields.
+  
+  \begin{center}
+    \begin{tabular}{| l | l |}
+      \hline
+      Subtype & Error \\ \hline
+      \texttt{NOSTART} & The message does not begin with a start character \\
+      \texttt{TYPE} & The message type could not be determined \\
+      \texttt{LENGTH} & Invalid field count for the message type or subtype \\
+      \texttt{CHECKSUM} & Invalid or missing checksum \\
+      \texttt{NUMBER} & Invalid number formatting or not a number \\
+      \texttt{UNSPECIFIED} & Other error occurred \\
+      \hline
+    \end{tabular}
+  \end{center}
+
+\section{Version History}
+
+\noindent{\large0.2 \normalsize} 
+
+Removed TIME queries; not possible with this RTC
+Added NACK\_ERROR reference
+Added checksum description
+Added full definitions for power related queries
+
+\noindent{\large0.1 \normalsize}
+
+Initial release.
+
+    
+\end{document}

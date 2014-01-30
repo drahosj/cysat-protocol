@@ -74,10 +74,10 @@ The communications protocol involves several types of message:
     \hline
     Message Type & Minimum Fields & Count \\ \hline
     \mquery & Type, Query Subtype, Checksum & 3 \\
-    \mcommand & Type, Command, ID, Checksum & 4 \\
+    \mcommand & Type, Command Subtype, Checksum & 3 \\
     \mdownlink & Type, ID, Data, Checksum & 4 \\
     \mresult & Type, Query Subtype, Result, Checksum  & 4 \\
-    \macommand & Type, Command, ID, Checksum & 4 \\
+    \macommand & Type, Command Subtype, Checksum & 3 \\
     \madownlink & Type, ID, Checksum & 3 \\
     \merror & Type, Subtype, Checksum & 3 \\
     \hline
@@ -86,6 +86,11 @@ The communications protocol involves several types of message:
 
 Note that these are minimum required fields. Some messages, such as \mquery and \mcommand may have
 different required parameters depending on the exact command or query being executed.
+
+The first field of any message is known as the ``Type'' field, and corresponds to the message type.
+The second field is often the message ``subtype''. For \mquery and \mcommand messages, this is the `command' or `query'
+being performed. For \mresult and \macommand messages, this corresponds to the subtype of the message
+being acknowledged or the query being answered. The last field is always a checksum.
 
 
   The checksum is a one-byte ASCII-Hexadecimal pair. Any applicable Message ID fields are two-byte ASCII-Hexadecimal values (two hex pairs).
@@ -104,14 +109,16 @@ different required parameters depending on the exact command or query being exec
   Each query message has a corresponding \mresult message. The subtype name of the corresponding \mresult
   is the same as the subtype name of the \mquery.
   
+  All \mquery messages require a Type, Subtype, and Checksum field. Some messages require additional fields following
+  the subtype and preceeding the checksum.
   \begin{center}
     \begin{tabular}{| l | l | l | c |}
       \hline
-      Subtype & Definition & Fields & Field Count \\ \hline
-      \texttt{HELLO} & Hello World & Type, Subtype, Checksum & 3 \\
-      \texttt{POW\_PANEL} & Panel information query & Type, Subtype, Axis, Checksum & 4 \\
-      \texttt{POW\_BUS} & Power bus information query & Type, Subtype, Checksum & 3 \\
-      \texttt{POW\_BATTERY} & Battery information query & Type, Subtype, Battery, Checksum & 4 \\
+      Subtype & Definition & Additional Fields & Total Field Count \\ \hline
+      \texttt{HELLO} & Hello World & -- & 3 \\
+      \texttt{POW\_PANEL} & Panel information query & Axis & 4 \\
+      \texttt{POW\_BUS} & Power bus information query & -- & 3 \\
+      \texttt{POW\_BATTERY} & Battery information query &  Battery & 4 \\
       \hline
     \end{tabular}
   \end{center}
@@ -158,17 +165,18 @@ different required parameters depending on the exact command or query being exec
 
 \section{RESULT Messages}
   \mresult messages are sent by the satellite in response to a query of the same subtype name. Each result message contains at least four fields.
-  At least one field contains the result data. Certain result subtypes may return more than one data field. The meanings of these additional
-  fields will be described in each \texttt{RESULT} section.
+  The Type, Subtype, and Checksum fields are required, and all \mresult messages have at least one additional field containing the actual result
+  data. Certain result subtypes may return more than one data field. The meanings of these additional
+  fields will be described in each \texttt{RESULT} section. All data fields directly preceed the checksum and are in the listed order.
   
   \begin{center}
     \begin{tabular}{| l | l | l | c |}
       \hline
-      Subtype & Definition & Fields & Count \\ \hline
-      \texttt{HELLO} & Hello World & Type, Subtype, Result Data, Checksum & 4\\
-      \texttt{POW\_PANEL} & Panel status & Type, Subtype, Axis, Voltage, -Current, +Current, Checksum & 7\\
-      \texttt{POW\_BUS} & Bus status & Type, Subtype, Battery Current, 5V Current, 3.3V Current, Checksum & 6 \\
-      \texttt{POW\_BATTERY} & Battery status & Type, Subtype, Battery, Temperature, Voltage, Direction, Current, Checksum & 8 \\
+      Subtype & Definition & Data Fields & Total field count \\ \hline
+      \texttt{HELLO} & Hello World & ``Hello World'' & 4\\
+      \texttt{POW\_PANEL} & Panel status & Axis, Voltage, -Current, +Current & 7\\
+      \texttt{POW\_BUS} & Bus status & Battery Current, 5V Current, 3.3V Current & 6 \\
+      \texttt{POW\_BATTERY} & Battery status & Battery, Temperature, Voltage, Direction, Current & 8 \\
       \hline
     \end{tabular}
   \end{center}
@@ -192,20 +200,74 @@ different required parameters depending on the exact command or query being exec
     on which was requested. The current, temperature, and voltage fields are two-byte integers represented as two hex-pairs.
     The direction field is either \texttt{D} or \texttt{C}, for discharge or charge.
     
-\section{NACK\_ERROR Messages}
-  \merror messages are sent by the satellite to inform the base station that a message was received, but an error
-  occurred during parsing. All \merror messages are three fields in length, with only the Type, Subtype, and Checksum fields.
+\section{COMMAND Messages}
+  \mcommand messages are sent by the ground station to request the satellite perform an action
+  or a configuration change. Each \mcommand should be followed by a \macommand sent from the satellite
+  to acknowledge the command was performed or a \merror telling why the satellite was unable to perform
+  the command.
   
   \begin{center}
-    \begin{tabular}{| l | l |}
+  \begin{tabular}{| l | l | l | c |}
+    \hline
+    Subtype & Description & Additional Fields & Field Count \\ \hline
+    \texttt{BURN} & Deploy Antennas & -- & 3\\
+    \texttt{POW\_PRINT} & Print EPS Data & -- & 3\\
+    \hline
+  \end{tabular}
+  \end{center}
+  
+  \subsection{COMMAND BURN}
+  This command manually deploys the antennas. The satellite should initiate a burn routine and immediately respond
+  with a \macommand acknowledging the burn
+  
+  \subsection{COMMAND POW\_PRINT}
+  This is a debug command. It causes the EPS driver to print all the housekeeping datat in ASCII directly 
+  to the console.
+  
+  \subsection{COMMAND Exchange Details}
+  A \mcommand exchange is a two-step exchange. First, the base station issues a \mcommand message and waits to receive either
+  a \macommand or \merror \texttt{COMMAND}. The satellite, upon receiving a \mcommand message, should either transmit a \merror 
+  \texttt{COMMAND}, or perform the command and return a \macommand.
+  
+  The satellite \textbf{IS NOT} permitted to transmit multiple \macommand messages per \mcommand received.
+  
+  The base station \textbf{MAY} retry \mcommand messages, but it is recommended to \mquery the satellite
+  if possible to determive whether the command was not received, or the \macommand was simply missed.
+
+\section{ACK\_COMMAND Messages}
+  \macommand messages acknowledge that a command was received and will or has been performed. If
+  the command cannot be performed, a \merror should be returned instead. Similar to \mresult messages,
+  the subtype of a \macommand is identical to the subtype of the \mcommand sent.
+  
+  
+  \begin{center}
+  \begin{tabular}{| l |}
+    \hline
+    Subtype\\ \hline
+    \texttt{BURN}\\
+    \texttt{POW\_PRINT} \\
+    \hline
+  \end{tabular}
+  \end{center}
+  
+  
+  
+\section{NACK\_ERROR Messages}
+  \merror messages are sent by the satellite to inform the base station that a message was received, but an error
+  occurred during parsing. Some \merror messages have four fields. This one additional field is a human-readable
+  description following the error subtype.
+  
+  \begin{center}
+    \begin{tabular}{| l | l | l |}
       \hline
-      Subtype & Error \\ \hline
-      \texttt{NOSTART} & The message does not begin with a start character \\
-      \texttt{TYPE} & The message type could not be determined \\
-      \texttt{LENGTH} & Invalid field count for the message type or subtype \\
-      \texttt{CHECKSUM} & Invalid or missing checksum \\
-      \texttt{NUMBER} & Invalid number formatting or not a number \\
-      \texttt{UNSPECIFIED} & Other error occurred \\
+      Subtype & Error & Description field \\ \hline
+      \texttt{TYPE} & The message type could not be determined & No \\
+      \texttt{SUBTYPE} & The message subtype could not be determined & No \\
+      \texttt{LENGTH} & Invalid field count for the message type or subtype & No\\
+      \texttt{CHECKSUM} & Invalid or missing checksum & No \\
+      \texttt{PARAM} & Invalid field in \mquery or \mcommand & Yes \\
+      \texttt{COMMAND} & Unable to perform a command & Yes \\
+      \texttt{UNSPECIFIED} & Other error occurred & Yes \\
       \hline
     \end{tabular}
   \end{center}
@@ -214,9 +276,20 @@ different required parameters depending on the exact command or query being exec
 
 \noindent{\large0.2 \normalsize} 
 
+Created descriptions of COMMAND messages
+
+Began table of COMMANDs
+
+Began table of ACK\_COMMANDs
+
+COMMAND BURN added
+
 Removed TIME queries; not possible with this RTC
+
 Added NACK\_ERROR reference
+
 Added checksum description
+
 Added full definitions for power related queries
 
 \noindent{\large0.1 \normalsize}

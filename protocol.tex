@@ -3,14 +3,14 @@
 % Jake Drahos - Januar 2014
 
 \documentclass{article}
-\usepackage{times}
+%\usepackage{times}
 \usepackage[margin=0.75in]{geometry}
 
 \begin{document}
 
 \title{CySat Command and Data Protocol Description}
 \author{Jake Drahos \\ \texttt{drahos@iastate.edu}}
-\date{\today\\v0.2}
+\date{\today\\v0.3}
 
 
 \newcommand{\mquery}{\texttt{QUERY }}
@@ -34,7 +34,8 @@ Version history can be found in the last section of this document.
 
 \section{Protocol Overview}
 The protocol is based on the idea of \emph{messages}.
-Messages are entirely in ASCII.
+Messages are entirely in ASCII, with the exception of \mdownlink messages, which
+contain a binary field.
 Each message has several \emph{fields}, each of which is separated by a comma.
 Every message begins with a start character, and ends with a stop character.
 
@@ -75,7 +76,7 @@ The communications protocol involves several types of message:
     Message Type & Minimum Fields & Count \\ \hline
     \mquery & Type, Query Subtype, Checksum & 3 \\
     \mcommand & Type, Command Subtype, Checksum & 3 \\
-    \mdownlink & Type, ID, Data, Checksum & 4 \\
+    \mdownlink & Type, ID, Size, Data, Checksum & 5 \\
     \mresult & Type, Query Subtype, Result, Checksum  & 4 \\
     \macommand & Type, Command Subtype, Checksum & 3 \\
     \madownlink & Type, ID, Checksum & 3 \\
@@ -119,6 +120,8 @@ being acknowledged or the query being answered. The last field is always a check
       \texttt{POW\_PANEL} & Panel information query & Axis & 4 \\
       \texttt{POW\_BUS} & Power bus information query & -- & 3 \\
       \texttt{POW\_BATTERY} & Battery information query &  Battery & 4 \\
+      \texttt{FOOTPRINTS} & Number of stored footprints & -- & 3\\
+      \texttt{TIME} & Current mission time & -- & 3\\
       \hline
     \end{tabular}
   \end{center}
@@ -151,6 +154,12 @@ being acknowledged or the query being answered. The last field is always a check
     \item \texttt{0}
     \item \texttt{1}
     \end{itemize}
+    
+  \subsection{QUERY FOOTPRINTS}
+    Requests the number of stored footprints for downlink.
+    
+  \subsection{QUERY TIME}
+    Requests the mission time.
   
   \subsection{QUERY Exchange Details}
   A \mquery exchange is a two-step exchange. First, the base station sends a \mquery message and waits.
@@ -177,6 +186,8 @@ being acknowledged or the query being answered. The last field is always a check
       \texttt{POW\_PANEL} & Panel status & Axis, Voltage, -Current, +Current & 7\\
       \texttt{POW\_BUS} & Bus status & Battery Current, 5V Current, 3.3V Current & 6 \\
       \texttt{POW\_BATTERY} & Battery status & Battery, Temperature, Voltage, Direction, Current & 8 \\
+      \texttt{FOOTPRINTS} & Number of stored footprints & Footprints & 4\\
+      \texttt{TIME} & Mission time & Time & 4\\
       \hline
     \end{tabular}
   \end{center}
@@ -200,6 +211,14 @@ being acknowledged or the query being answered. The last field is always a check
     on which was requested. The current, temperature, and voltage fields are two-byte integers represented as two hex-pairs.
     The direction field is either \texttt{D} or \texttt{C}, for discharge or charge.
     
+  \subsection{RESULT FOOTPRINTS}
+  Returns the number of stored footprints. This number should be a four-byte big-endian
+  integer, returned as four consecutive hex pairs.
+  
+  \subsection{RESULT TIME}
+  Returns the mission time. This number should be a four-byte big-endian integer, 
+  formatted as four consecutive hex pairs.
+    
 \section{COMMAND Messages}
   \mcommand messages are sent by the ground station to request the satellite perform an action
   or a configuration change. Each \mcommand should be followed by a \macommand sent from the satellite
@@ -212,6 +231,11 @@ being acknowledged or the query being answered. The last field is always a check
     Subtype & Description & Additional Fields & Field Count \\ \hline
     \texttt{BURN} & Deploy Antennas & -- & 3\\
     \texttt{POW\_PRINT} & Print EPS Data & -- & 3\\
+    \texttt{DOWNLINK} & Initiate a downlink session & -- & 3\\
+    \texttt{RESET\_CLOCK} & Reset mission clock to zero & -- & 3\\
+    \texttt{SET\_CLOCK} & Set clock to provided time & Time & 4\\
+    \texttt{REBOOT} & Perform a reboot & -- & 3\\
+    \texttt{REBOOT\_HARD} & Perform an immediate reboot & -- & 3\\
     \hline
   \end{tabular}
   \end{center}
@@ -224,6 +248,29 @@ being acknowledged or the query being answered. The last field is always a check
   This is a debug command. It causes the EPS driver to print all the housekeeping datat in ASCII directly 
   to the console.
   
+  \subsection{COMMAND DOWNLINK}
+  This command orders the satellite to initiate a downlink session. The satellite must
+  respond with an \macommand before sending \mdownlink messages. For more information,
+  see the section titled ``Downlink Protocol.'' 
+  
+  \subsection{COMMAND RESET\_CLOCK}
+  This command resets the mission clock to zero. This should not cause the satellite
+  to go through any first-boot initialization; it should simply set the clock to zero.
+  
+  \subsection{COMMAND SET\_CLOCK}
+  This command sets the mission clock to the provided value. The mission clock measures
+  seconds since mission time zero, with mission time zero being the time of first boot.
+  The parameter should be a 4-byte big-endian number, consisting of 4 continuous hex
+  pairs.
+  
+  \subsection{COMMAND REBOOT}
+  The satellite must transmit a \macommand message prior to the reboot. The satellite
+  is permitted to finish any other operations prior to the reboot.
+  
+  \subsection{COMMAND REBOOT\_HARD}
+  The satellite must perform a hardware reset as soon as this message is parsed, without
+  regard for any other tasks that may be in progress.
+  
   \subsection{COMMAND Exchange Details}
   A \mcommand exchange is a two-step exchange. First, the base station issues a \mcommand message and waits to receive either
   a \macommand or \merror \texttt{COMMAND}. The satellite, upon receiving a \mcommand message, should either transmit a \merror 
@@ -232,8 +279,38 @@ being acknowledged or the query being answered. The last field is always a check
   The satellite \textbf{IS NOT} permitted to transmit multiple \macommand messages per \mcommand received.
   
   The base station \textbf{MAY} retry \mcommand messages, but it is recommended to \mquery the satellite
-  if possible to determive whether the command was not received, or the \macommand was simply missed.
-
+  if possible to determine whether the command was not received, or the \macommand was simply missed.
+  
+\section{DOWNLINK Messages}
+  The \mdownlink message is a special case because it is a hybrid ascii-binary 
+  format. Because of this, it is the only message with a SIZE field.
+  
+  \begin{center}
+  \begin{tabular}{| l | l | l |}
+   \hline
+  	Field & Purpose & Format \\
+  	Type & DOWNLINK & Text \\
+  	ID & Associate \mdownlink with \madownlink & One byte; hex pair \\
+  	Size & Size of payload & One byte; hex pair \\
+  	Data & Data payload & Binary data \\
+  	Checksum & Message Checksum & Normal checksum format \\
+   \hline
+  \end{tabular}
+  \end{center}
+  	
+  As \mdownlink messages contain a binary segment, the stop character is not
+  a reliable way to determine the end of the message. Care must be taken to 
+  properly take into account the size of the data payload.
+ 
+  The message ID must be unique among all recent messages. For more
+  information, see the section titled ``Downlink Protocol''
+  
+\section{ACK\_DOWNLINK Messages}
+	The \madownlink message acknowledges a \mdownlink message and permits the
+	satellite to discard the contained footprints or other downlink data. The 
+	ID contained in the \madownlink message corresponds to the received and
+	stored \mdownlink.
+	
 \section{ACK\_COMMAND Messages}
   \macommand messages acknowledge that a command was received and will or has been performed. If
   the command cannot be performed, a \merror should be returned instead. Similar to \mresult messages,
@@ -260,7 +337,7 @@ being acknowledged or the query being answered. The last field is always a check
   \begin{center}
     \begin{tabular}{| l | l | l |}
       \hline
-      Subtype & Error & Description field \\ \hline
+      Subtype & Error & Description field? \\ \hline
       \texttt{TYPE} & The message type could not be determined & No \\
       \texttt{SUBTYPE} & The message subtype could not be determined & No \\
       \texttt{LENGTH} & Invalid field count for the message type or subtype & No\\
@@ -271,6 +348,41 @@ being acknowledged or the query being answered. The last field is always a check
       \hline
     \end{tabular}
   \end{center}
+
+\section{Downlink Protocol}
+  During downlink, the satellite operates in a slightly different manner.
+  Upon receiving a the to begin a downlink session, the satellite will begin to
+  transmit \mdownlink packets. The downlink session ends when one of two
+  conditions is met: The satellite runs out of footprints, or the satellite times
+  out on waiting for a downlink packet to be acknowledged. The details of these
+  are covered in the subsection titled ``Cleanup''
+  
+  The rate of transmission is determined by the satellite. Messages should be
+  transmitted fast enough to ensure continuous communication, but the rate of 
+  arrival of \madownlink messages should be taken into account to ensure that
+  messages are not likely to be dropped.
+  
+  The satellite should pull data from non-volatile memory and cache it for
+  transmission. Should the transmission be successfully acknowledged, the
+  data should be discarded. If the transmission times out, the data must be 
+  returned to safe storage.  
+  
+  \subsection{Cleanup}
+    If the session ends due to the satellite exhausting its supply of buffered
+    data, it simply ceases transmission of \mdownlink messages. Upon receipt of 
+    the last \madownlink, the satellite can safely leave downlink mode. The
+    station can confirm that the satellite has no more data to transmit via a 
+    \mquery. Should the satellite transmit all available downlink data, but
+    fail to receive a needed \madownlink, the session ends exactly as if the
+    time-out had occurred at any other point.
+    
+    Should the session end due to a time-out, the satellite immediately ceases
+    transmission of new \mdownlink messages and begin waiting for a time-out of
+    any currently transmitted but not yet acknowledged messages. Any \madownlink
+    messages received during this time are taken into account and handled
+    properly. At the end of the last time-out, any unacknowledged data is safely
+    returned to non-volatile memory and the satellite leaves downlink mode until
+    a new downlink session is initialized.
 
 \section{Version History}
 

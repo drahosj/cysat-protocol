@@ -290,7 +290,7 @@ being acknowledged or the query being answered. The last field is always a check
    \hline
   	Field & Purpose & Format \\
   	Type & DOWNLINK & Text \\
-  	ID & Associate \mdownlink with \madownlink & One byte; hex pair \\
+  	ID & Associate \mdownlink with \madownlink & Two byte; hex pair \\
   	Size & Size of payload & One byte; hex pair \\
   	Data & Data payload & Binary data \\
   	Checksum & Message Checksum & Normal checksum format \\
@@ -323,6 +323,10 @@ being acknowledged or the query being answered. The last field is always a check
     Subtype\\ \hline
     \texttt{BURN}\\
     \texttt{POW\_PRINT} \\
+    \texttt{DOWNLINK}\\
+    \texttt{RESET\_CLOCK}\\
+    \texttt{SET\_CLOCK}\\
+    \texttt{REBOOT}\\
     \hline
   \end{tabular}
   \end{center}
@@ -385,6 +389,13 @@ being acknowledged or the query being answered. The last field is always a check
     a new downlink session is initialized.
 
 \section{Version History}
+
+\noindent{\large0.3 \normalsize}
+Added definition of downlink messages and protocol
+
+Added many commands, including time, reboot, and downlink.
+
+Added several queries, including time and footprint queries
 
 \noindent{\large0.2 \normalsize} 
 

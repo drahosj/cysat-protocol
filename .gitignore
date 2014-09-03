@@ -1,3 +1,4 @@
-protocol.log
-protocol.pdf
-protocol.aux
+*.log
+*.pdf
+*.aux
+*.dvi

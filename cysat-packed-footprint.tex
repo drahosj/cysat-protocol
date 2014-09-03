@@ -1,0 +1,41 @@
+\documentclass['8pt']{article}
+\usepackage{bytefield}
+\usepackage[margin=0.5in]{geometry}
+
+\begin{document}
+\begin{bytefield}[bitwidth=1.6em]{32}
+  \bitheader{0-31} \\
+  \bitbox{32}{Timestamp}\\
+% \begin{rightwordgroup}{Payload \\ Data}
+  \wordbox[tlr]{2}{Payload 1 Array} \\
+  \bitbox[blr]{16}{} &
+  
+  \bitbox[tlr]{16}{}\\
+  \wordbox[blr]{2}{Payload 2 Array}\\
+  
+  \wordbox[tlr]{2}{Payload 3 Array}\\
+  \bitbox[blr]{16}{} &
+  \bitbox[tlrb]{16}{Padding - Reserved} \\
+% \end{rightwordgroup}
+
+  \bitbox{5}{X Volts - Hi} & \bitbox{1}{0}& \bitbox{10}{X Array -Current} &
+  \bitbox{5}{X Volts - Lo} & \bitbox{1}{0}& \bitbox{10}{X Array +Current} \\
+  
+  \bitbox{5}{Y Volts - Hi} & \bitbox{1}{0}& \bitbox{10}{Y Array -Current} &
+  \bitbox{5}{Y Volts - Lo} & \bitbox{1}{0}& \bitbox{10}{Y Array +Current} \\
+  
+  \bitbox{5}{Z Volts - Hi} & \bitbox{1}{0}& \bitbox{10}{Z Array -Current} &
+  \bitbox{5}{Z Volts - Lo} & \bitbox{1}{0}& \bitbox{10}{Z Array +Current} \\
+  
+  \bitbox{5}{Bat Bus - Hi} & \bitbox{1}{0}& \bitbox{10}{5V Current} &
+  \bitbox{5}{Bat Bus - Lo} & \bitbox{1}{0}& \bitbox{10}{3.3V Current} \\
+  
+  \bitbox{5}{0 Temp - Hi} & \bitbox{1}{0}& \bitbox{10}{Bat 0 Volts} &
+  \bitbox{5}{0 Temp - Lo} & \bitbox{1}{Dir}& \bitbox{10}{Bat 0 Current} \\
+  
+  \bitbox{5}{1 Temp - Hi} & \bitbox{1}{0}& \bitbox{10}{Bat 1 Volts} &
+  \bitbox{5}{1 Temp - Lo} & \bitbox{1}{Dir}& \bitbox{10}{Bat 1 Current} \\
+  
+  \bitbox{32}{Unused}
+\end{bytefield}
+\end{document}
